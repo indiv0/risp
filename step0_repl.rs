@@ -1,22 +1,29 @@
-use std::io::{self, Write};
+use rustyline::Editor;
+use rustyline::error::ReadlineError;
 
 fn main() {
-    if let Err(e) = _main() {
-        eprintln!("error: {}", e);
+    // Construct a new `Editor` without a syntax specific helper. This means
+    // that there is no tokenizer/parser used for completion, suggestion, or
+    // highlighting.
+    let mut rl = Editor::<()>::new();
+    if rl.load_history(".mal_history").is_err() {
+        println!("no previous history");
     }
-}
-
-fn _main() -> Result<(), std::io::Error> {
     loop {
-        print!("user> ");
-        io::stdout().flush()?;
-        let mut buffer = String::new();
-        if let 0 = io::stdin().read_line(&mut buffer)? {
-            // If the stream reaches EOF, `read_line` returns `Ok(0)`. On EOF,
-            // the program exits.
-            return Ok(())
+        match rl.readline("user> ") {
+            Ok(line) => {
+                rl.add_history_entry(line.as_str());
+                println!("{}", rep(&line));
+            },
+            Err(ReadlineError::Eof) => {
+                // If the stream reaches EOF, we exit the program.
+                return
+            },
+            Err(err) => {
+                eprintln!("error: {}", err);
+            },
         }
-        println!("{}", rep(&buffer));
+        rl.save_history(".mal_history").expect("error saving history");
     }
 }
 
