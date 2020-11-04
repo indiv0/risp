@@ -125,16 +125,12 @@ fn read_str(input: &str) -> Result<MalType, MalError> {
 ///   (tokenized).
 fn tokenize(input: &str) -> impl Iterator<Item=Token> + '_ {
     lazy_static! {
-        static ref RE: Regex = Regex::new(r#"[\s,]*(~@|[\[\]{}()'`~^@]|"(?:\\.|[^\\"])*"?|;.*|[^\s\[\]{}('"`,;)]*)"#)
+        static ref RE: Regex = Regex::new(r#"[\s,]*(~@|[\[\]{}()'`~^@]|"(?:\\.|[^\\"])*"?|;.*|[^\s\[\]{}('"`,;)]+)"#)
         .expect("error compiling regex");
     }
     RE
         .captures_iter(input)
-        .flat_map(|c| c.get(1))
-        // Tokens can't be empty. Without this, '(1 2 ' would produce the tokens ["(", "1", "2",
-        // ""] instead of ["(", "1", "2"].
-        .filter(|m| m.as_str() != "")
-        .map(|m| Token(m.as_str().to_owned()))
+        .map(|c| Token(c[1].to_owned()))
 }
 
 /// Peeks at the first token in the `Reader` and switches on the first
