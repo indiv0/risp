@@ -173,7 +173,7 @@ enum MalType {
     Integer(isize),
     Symbol(String),
     List(Vec<MalType>),
-    //Nil,
+    Nil,
     //True,
     //False,
     //String,
@@ -204,10 +204,15 @@ fn read_atom<I>(reader: &mut Reader<I>) -> MalType
     where I: Iterator<Item=Token>,
 {
     let token = reader.next().unwrap();
-    if let Ok(integer) = token.0.parse::<isize>() {
-        MalType::Integer(integer)
-    } else {
-        MalType::Symbol(token.0.clone())
+    match token.0.as_ref() {
+        "nil" => MalType::Nil,
+        _ => {
+            if let Ok(integer) = token.0.parse::<isize>() {
+                MalType::Integer(integer)
+            } else {
+                MalType::Symbol(token.0.clone())
+            }
+        },
     }
 }
 
@@ -228,6 +233,7 @@ fn pr_str<'a>(input: &MalType) -> String {
             let joined_values = string_values.join(" ");
             format!("({})", joined_values)
         },
+        &MalType::Nil => "nil".to_owned(),
     }
 }
 
