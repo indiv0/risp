@@ -1,6 +1,6 @@
 .PHONY: all clean
 
-STEPS = step0_repl
+STEPS = step0_repl step1_read_print
 
 all: $(STEPS)
 
