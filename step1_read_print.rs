@@ -3,7 +3,7 @@ extern crate lazy_static;
 
 use std::{fmt, iter, mem};
 
-use regex::Regex;
+use regex::{Captures, Regex};
 use rustyline::Editor;
 use rustyline::error::ReadlineError;
 
@@ -51,7 +51,7 @@ fn read(input: &str) -> Result<MalType, MalError> {
 fn eval(input: &MalType) -> MalType { (*input).clone() }
 
 fn print(input: &MalType) -> String {
-    pr_str(&input)
+    pr_str(&input, true)
 }
 
 /// Stateful `Reader` struct that holds functions related to the reader.
@@ -176,7 +176,7 @@ enum MalType {
     Nil,
     True,
     False,
-    //String,
+    String(String),
     //Keyword,
 }
 
@@ -203,6 +203,10 @@ fn read_list<I>(reader: &mut Reader<I>) -> Result<MalType, MalError>
 fn read_atom<I>(reader: &mut Reader<I>) -> MalType
     where I: Iterator<Item=Token>,
 {
+    lazy_static! {
+        static ref STRING_RE: Regex = Regex::new(r#""(?:\\.|[^\\"])*""#)
+            .expect("error compiling regex");
+    }
     let token = reader.next().unwrap();
     match token.0.as_ref() {
         "nil" => MalType::Nil,
@@ -211,11 +215,33 @@ fn read_atom<I>(reader: &mut Reader<I>) -> MalType
         _ => {
             if let Ok(integer) = token.0.parse::<isize>() {
                 MalType::Integer(integer)
+            } else if STRING_RE.is_match(&token.0) {
+                MalType::String(unescape_str(&token.0[1..token.0.len() - 1]))
             } else {
                 MalType::Symbol(token.0.clone())
             }
         },
     }
+}
+
+/// Escapes a string.
+///
+/// A backslash followed by a doublequote is translated into a plain
+/// doublequote character, a backslash followed by "n" is translated into a
+/// newline, and a backslash followed by another backslash is translated into a
+/// single backslash.
+fn unescape_str(input: &str) -> String {
+    lazy_static! {
+        static ref RE: Regex = Regex::new(r#"\\"|\\n|\\\\"#).expect("error compiling regex");
+    }
+    RE.replace_all(input, |c: &Captures| {
+        match &c[0] {
+            r#"\""# => "\"",
+            r#"\n"# => "\n",
+            r#"\\"# => "\\",
+            _ => unreachable!(),
+        }
+    }).into()
 }
 
 /// Does the opposite of `read_str`. Takes a mal data structure and returns a
@@ -226,19 +252,42 @@ fn read_atom<I>(reader: &mut Reader<I>) -> MalType
 /// * list: iterate through each element of the list calling `pr_str` on it,
 ///   then join the results with a space separator, and surround the final
 ///   with parens
-fn pr_str<'a>(input: &MalType) -> String {
+fn pr_str<'a>(input: &MalType, print_readably: bool) -> String {
     match &input {
         &MalType::Integer(integer) => integer.to_string(),
         &MalType::Symbol(symbol) => symbol.to_owned(),
         &MalType::List(ref values) => {
-            let string_values = values.iter().map(|v| pr_str(v)).collect::<Vec<_>>();
+            let string_values = values.iter().map(|v| pr_str(v, print_readably)).collect::<Vec<_>>();
             let joined_values = string_values.join(" ");
             format!("({})", joined_values)
         },
         &MalType::Nil => "nil".to_owned(),
         &MalType::True => "true".to_owned(),
         &MalType::False => "false".to_owned(),
+        &MalType::String(string) => {
+            if print_readably { format!("\"{}\"", escape_str(string)) }
+            else { format!("\"{}\"", string) }
+        }
     }
+}
+
+/// Does the opposite of `unescape_str`. Takes an unescaped string and escapes it.
+///
+/// A plain doublequote character is translated into a backslash followed by a
+/// doublequote, a newline is translated into a backslash followed by "n", and
+/// a single backslash is translated into a backslash followed by another backslash.
+fn escape_str(input: &str) -> String {
+    lazy_static! {
+        static ref RE: Regex = Regex::new(r#""|\n|\\"#).expect("error compiling regex");
+    }
+    RE.replace_all(input, |c: &Captures| {
+        match &c[0] {
+            "\"" => r#"\""#,
+            "\n" => r#"\n"#,
+            "\\" => r#"\\"#,
+            _ => unreachable!(),
+        }
+    }).into()
 }
 
 #[cfg(test)]
